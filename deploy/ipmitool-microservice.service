@@ -1,0 +1,25 @@
+[Unit]
+Description=Authenticated REST API for ipmitool
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=ipmitool-api
+Group=ipmitool-api
+Environment=GIN_MODE=release
+ExecStart=/usr/local/bin/ipmitool-microservice serve --config /etc/ipmitool-microservice/config.yaml
+WorkingDirectory=/var/lib/ipmitool-microservice
+StateDirectory=ipmitool-microservice
+StateDirectoryMode=0750
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=10s
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target
