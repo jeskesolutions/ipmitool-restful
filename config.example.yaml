@@ -1,0 +1,16 @@
+server:
+  address: "127.0.0.1:8080"
+  allowed_ips: []
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+
+auth:
+  token: ""
+
+ipmitool:
+  binary: "ipmitool"
+  timeout: "30s"
+  max_output_bytes: 1048576
+  max_concurrent: 4

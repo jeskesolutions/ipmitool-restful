@@ -1,0 +1,35 @@
+# Local configuration and secrets
+/config.yaml
+/config.yml
+/config.local.*
+.env
+.env.*
+!.env.example
+!.env.*.example
+/certs/
+*.key
+
+# Go binaries and build output
+/ipmitool-microservice
+/ipmitool-microservice.exe
+/bin/
+/build/
+/dist/
+*.test
+
+# Test reports and temporary files
+/coverage/
+/coverage*.out
+/coverage*.html
+*.prof
+*.log
+/.cache/
+
+# IDE, editor, and operating system files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
