@@ -1,5 +1,8 @@
 # ipmitool-microservice
 
+> [!WARNING]
+> This project is experimental and intended for testing only. It is not recommended for production use.
+
 REST API for remote `ipmitool` commands, built with Go, Gin, Viper, Cobra, and Zap.
 Every command receives BMC credentials in its JSON body. Access requires a fixed
 Bearer token, with optional HTTPS and an IP allowlist.
