@@ -7,12 +7,17 @@ type Error struct {
 	Message string `json:"message"`
 }
 
+type errorResponse struct {
+	Error Error `json:"error"`
+}
+
 func WriteJSON(c *gin.Context, status int, value any) {
 	c.JSON(status, value)
 }
 
 func WriteError(c *gin.Context, status int, code, message string) {
-	c.AbortWithStatusJSON(status, struct {
-		Error Error `json:"error"`
-	}{Error: Error{Code: code, Message: message}})
+	payload := errorResponse{
+		Error: Error{Code: code, Message: message},
+	}
+	c.AbortWithStatusJSON(status, payload)
 }

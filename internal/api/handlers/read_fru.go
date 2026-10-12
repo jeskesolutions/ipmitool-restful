@@ -7,5 +7,6 @@ func (h *Handler) ReadFRU(c *gin.Context) {
 	if !decodeRequest(c, &request) {
 		return
 	}
+
 	h.execute(c, request.Connection, []string{"fru", "print"}, "")
 }

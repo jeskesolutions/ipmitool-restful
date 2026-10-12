@@ -31,6 +31,7 @@ func lookupExecutables(paths map[string]string) func(string) (string, error) {
 		if path, found := paths[name]; found {
 			return path, nil
 		}
+
 		return "", &exec.Error{Name: name, Err: exec.ErrNotFound}
 	}
 }
@@ -85,10 +86,12 @@ func TestEnsureBinaryInstallsWithAPTInOrder(t *testing.T) {
 				if binary != tc.binary || writer != &output {
 					t.Fatalf("unexpected command/output: binary=%q", binary)
 				}
+
 				gotDeadline, ok := ctx.Deadline()
 				if !ok {
 					t.Fatal("package installation has no timeout")
 				}
+
 				if len(calls) == 0 {
 					deadline = gotDeadline
 					remaining := time.Until(deadline)
@@ -98,16 +101,19 @@ func TestEnsureBinaryInstallsWithAPTInOrder(t *testing.T) {
 				} else if gotDeadline != deadline {
 					t.Fatal("installation timeout restarted between apt steps")
 				}
+
 				calls = append(calls, append([]string(nil), args...))
 				if len(calls) == 2 {
 					paths["/usr/bin/ipmitool"] = "/usr/bin/ipmitool"
 				}
+
 				return nil
 			}
 			path, err := installer.ensure(context.Background(), "ipmitool", &output)
 			if err != nil || path != "/usr/bin/ipmitool" {
 				t.Fatalf("installed path=%q, error=%v", path, err)
 			}
+
 			want := [][]string{
 				append(append([]string{}, tc.prefix...), "-o", "Dpkg::Use-Pty=0", "update"),
 				append(append([]string{}, tc.prefix...), "-o", "Dpkg::Use-Pty=0", "install", "--yes", "--no-remove", "ipmitool"),
@@ -115,6 +121,7 @@ func TestEnsureBinaryInstallsWithAPTInOrder(t *testing.T) {
 			if !reflect.DeepEqual(calls, want) {
 				t.Fatalf("apt commands:\ngot  %#v\nwant %#v", calls, want)
 			}
+
 			if output.Len() == 0 {
 				t.Fatal("installation progress was not reported")
 			}
@@ -129,7 +136,7 @@ func TestEnsureBinaryRejectsUnavailableInstallation(t *testing.T) {
 	}{
 		{"custom name missing", "custom-ipmi", "locate ipmitool", func(*binaryInstaller) {}},
 		{"custom path missing", "/custom/ipmitool", "locate ipmitool", func(*binaryInstaller) {}},
-		{"unsupported OS", "ipmitool", "requires Linux", func(i *binaryInstaller) { i.goos = "darwin" }},
+		{"unsupported OS", "ipmitool", "requires linux", func(i *binaryInstaller) { i.goos = "darwin" }},
 		{"apt missing", "ipmitool", "locate apt", func(i *binaryInstaller) { i.lookPath = lookupExecutables(nil) }},
 		{"sudo missing", "ipmitool", "locate sudo", func(i *binaryInstaller) {
 			i.euid = 1000
@@ -164,6 +171,7 @@ func TestEnsureBinaryDoesNotInstallAfterLookupErrors(t *testing.T) {
 				if name == tc.candidate {
 					return "", &exec.Error{Name: name, Err: tc.err}
 				}
+
 				return lookup(name)
 			}
 			_, err := installer.ensure(context.Background(), "ipmitool", nil)
@@ -179,6 +187,7 @@ func TestEnsureBinaryDetectsNonexecutablePATHCandidate(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "ipmitool"), []byte("not executable"), 0600); err != nil {
 		t.Fatal(err)
 	}
+
 	t.Setenv("PATH", dir)
 	installer := testInstaller(t)
 	installer.lookPath, installer.dirs = exec.LookPath, []string{dir}
@@ -199,6 +208,7 @@ func TestEnsureBinaryAbortsAfterAPTFailure(t *testing.T) {
 				if args[2] == failingStep {
 					return failure
 				}
+
 				return nil
 			}
 			_, err := installer.ensure(context.Background(), "ipmitool", nil)
@@ -206,6 +216,7 @@ func TestEnsureBinaryAbortsAfterAPTFailure(t *testing.T) {
 			if failingStep == "install" {
 				wantCalls = 2
 			}
+
 			if !errors.Is(err, failure) || calls != wantCalls || !strings.Contains(err.Error(), "apt "+failingStep) {
 				t.Fatalf("failed step was not preserved: calls=%d error=%v", calls, err)
 			}
@@ -275,6 +286,7 @@ exit 0
 	if err := runPackageCommand(context.Background(), binary, args, &output); err != nil {
 		t.Fatal(err)
 	}
+
 	got := strings.Split(strings.TrimSuffix(output.String(), "\x00"), "\x00")
 	want := append([]string{"noninteractive"}, args...)
 	if !reflect.DeepEqual(got, want) {

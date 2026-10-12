@@ -16,12 +16,16 @@ func New(cfg config.Config, runner handlers.Runner, logger *zap.Logger) http.Han
 	if logger == nil {
 		logger = zap.NewNop()
 	}
+
 	handler := handlers.New(runner, cfg.IPMITool.MaxConcurrent)
 	router := gin.New()
 	router.RedirectTrailingSlash = false
 	router.RedirectFixedPath = false
 	router.HandleMethodNotAllowed = true
-	router.Use(middleware.LogRequests(logger), middleware.Recover(logger), middleware.Authenticate(cfg.Auth.Token), middleware.AllowIPs(cfg.Server.AllowedIPs))
+	router.Use(middleware.LogRequests(logger))
+	router.Use(middleware.Recover(logger))
+	router.Use(middleware.Authenticate(cfg.Auth.Token))
+	router.Use(middleware.AllowIPs(cfg.Server.AllowedIPs))
 	router.NoRoute(notFound)
 	router.NoMethod(methodNotAllowed)
 
@@ -50,9 +54,9 @@ func New(cfg config.Config, runner handlers.Runner, logger *zap.Logger) http.Han
 }
 
 func notFound(c *gin.Context) {
-	response.WriteError(c, http.StatusNotFound, "not_found", "Route not found")
+	response.WriteError(c, http.StatusNotFound, "not_found", "route not found")
 }
 
 func methodNotAllowed(c *gin.Context) {
-	response.WriteError(c, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+	response.WriteError(c, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 }

@@ -34,6 +34,7 @@ func (s stubRunner) RunWithInput(ctx context.Context, conn ipmi.Connection, args
 	if s.run == nil {
 		return ipmi.Result{}, nil
 	}
+
 	return s.run(ctx, conn, args, stdin)
 }
 
@@ -55,6 +56,7 @@ func connectionBody(fields string) string {
 	if fields != "" {
 		fields = "," + fields
 	}
+
 	return `{"connection":` + connectionJSON + fields + `}`
 }
 
@@ -64,6 +66,7 @@ func request(handler http.Handler, method, path, body string) *httptest.Response
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
+
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 	return res
@@ -85,10 +88,12 @@ func TestRoutesRequireAuthentication(t *testing.T) {
 		if res.Code != http.StatusUnauthorized {
 			t.Errorf("%s status = %d, want 401", tc.path, res.Code)
 		}
+
 		if res.Header().Get("Location") != "" || !json.Valid(res.Body.Bytes()) {
 			t.Errorf("unauthenticated response must be JSON without redirect: %s", res.Body.String())
 		}
 	}
+
 	if called {
 		t.Fatal("unauthenticated request invoked ipmitool")
 	}
@@ -122,6 +127,7 @@ func TestHealthAndRemovedTargets(t *testing.T) {
 	if res.Code != http.StatusOK || !json.Valid(res.Body.Bytes()) || !strings.Contains(res.Body.String(), "ipmitool version test") {
 		t.Fatalf("health status = %d: %s", res.Code, res.Body.String())
 	}
+
 	for _, path := range []string{"/api/v1/targets", "/api/v1/targets/alpha/power", "/api/v1/targets/alpha/commands"} {
 		res = request(handler, http.MethodGet, path, "")
 		if res.Code != http.StatusNotFound {
@@ -161,12 +167,13 @@ func TestResourceRoutes(t *testing.T) {
 		t.Run(tc.method+tc.path+tc.body, func(t *testing.T) {
 			cfg := testConfig()
 			called := 0
-			want := ipmi.Result{Stdout: "result\n", Stderr: "diagnostic\n", ExitCode: 0, Truncated: true}
+			want := ipmi.Result{Stdout: "CPU Temp: 42 C\n", Stderr: "IPMI Diagnostic\n", ExitCode: 0, Truncated: true}
 			handler := newAPI(cfg, stubRunner{run: func(_ context.Context, conn ipmi.Connection, args []string, stdin string) (ipmi.Result, error) {
 				called++
 				if !reflect.DeepEqual(conn, defaultConnection()) || !reflect.DeepEqual(args, tc.args) || stdin != "" {
 					t.Errorf("runner received conn=%+v args=%q stdin=%q; want args=%q", conn, args, stdin, tc.args)
 				}
+
 				return want, nil
 			}})
 			fields := strings.TrimSuffix(strings.TrimPrefix(tc.body, "{"), "}")
@@ -174,6 +181,7 @@ func TestResourceRoutes(t *testing.T) {
 			if res.Code != http.StatusOK || called != 1 {
 				t.Fatalf("status = %d, runner calls = %d: %s", res.Code, called, res.Body.String())
 			}
+
 			var got ipmi.Result
 			if err := json.Unmarshal(res.Body.Bytes(), &got); err != nil || got != want {
 				t.Fatalf("result = %+v, error = %v; want %+v", got, err, want)
@@ -192,12 +200,14 @@ func TestCommandsForwardArgumentsInputAndContext(t *testing.T) {
 		if !reflect.DeepEqual(got, args) || stdin != input || ctx.Value(contextKey{}) != "request-context" {
 			t.Errorf("request was not forwarded intact: args=%q stdin=%q context=%v", got, stdin, ctx.Value(contextKey{}))
 		}
+
 		return ipmi.Result{Stdout: "ok"}, nil
 	}})
 	body, err := json.Marshal(map[string]any{"connection": json.RawMessage(connectionJSON), "args": args, "stdin": input})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/commands", strings.NewReader(string(body)))
 	req = req.WithContext(context.WithValue(req.Context(), contextKey{}, "request-context"))
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -243,11 +253,13 @@ func TestInvalidRequestsDoNotExecute(t *testing.T) {
 			if tc.contentType != "" {
 				req.Header.Set("Content-Type", tc.contentType)
 			}
+
 			res := httptest.NewRecorder()
 			handler.ServeHTTP(res, req)
 			if res.Code != tc.want || called {
 				t.Fatalf("status = %d, want %d; runner called = %v: %s", res.Code, tc.want, called, res.Body.String())
 			}
+
 			if strings.Contains(res.Body.String(), "private-bmc-password") {
 				t.Fatal("validation error exposed password")
 			}
@@ -268,15 +280,24 @@ func TestCommandErrorStatus(t *testing.T) {
 		{"internal failure", errors.New("sensitive-executor-detail"), http.StatusInternalServerError},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			want := ipmi.Result{Stdout: "CPU Temp: 42 C\n", Stderr: "IPMI Diagnostic\n", ExitCode: 1}
 			handler := newAPI(testConfig(), stubRunner{run: func(context.Context, ipmi.Connection, []string, string) (ipmi.Result, error) {
-				return ipmi.Result{ExitCode: 1, Stderr: "command diagnostic"}, tc.err
+				return want, tc.err
 			}})
 			res := request(handler, http.MethodPost, "/api/v1/commands", connectionBody(`"args":["raw"]`))
 			if res.Code != tc.want || !json.Valid(res.Body.Bytes()) {
 				t.Fatalf("status = %d, want %d: %s", res.Code, tc.want, res.Body.String())
 			}
+
 			if strings.Contains(res.Body.String(), "sensitive-executor-detail") {
 				t.Fatal("internal execution error leaked to client")
+			}
+
+			var envelope struct {
+				Result ipmi.Result `json:"result"`
+			}
+			if err := json.Unmarshal(res.Body.Bytes(), &envelope); err != nil || envelope.Result != want {
+				t.Fatalf("result = %+v, error = %v; want %+v", envelope.Result, err, want)
 			}
 		})
 	}
@@ -289,6 +310,7 @@ func TestRequestCancellationReachesRunner(t *testing.T) {
 		if !errors.Is(ctx.Err(), context.Canceled) {
 			t.Errorf("runner context error = %v, want cancellation", ctx.Err())
 		}
+
 		return ipmi.Result{}, ctx.Err()
 	}})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/power/status", strings.NewReader(connectionBody(""))).WithContext(ctx)
@@ -318,6 +340,7 @@ func TestConcurrentLimitAndRelease(t *testing.T) {
 			<-release
 			return ipmi.Result{ExitCode: 1}, ipmi.ErrCommandFailed
 		}
+
 		return ipmi.Result{Stdout: "next request"}, nil
 	}})
 	done := make(chan *httptest.ResponseRecorder, 1)
@@ -329,10 +352,12 @@ func TestConcurrentLimitAndRelease(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("first command did not start")
 	}
+
 	res := request(handler, http.MethodPost, "/api/v1/power/status", connectionBody(""))
 	if res.Code != http.StatusServiceUnavailable || res.Header().Get("Retry-After") != "1" || calls.Load() != 1 {
 		t.Fatalf("busy request status = %d, retry = %q, calls = %d", res.Code, res.Header().Get("Retry-After"), calls.Load())
 	}
+
 	close(release)
 	select {
 	case first := <-done:
@@ -342,6 +367,7 @@ func TestConcurrentLimitAndRelease(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("first command did not finish")
 	}
+
 	res = request(handler, http.MethodPost, "/api/v1/power/status", connectionBody(""))
 	if res.Code != http.StatusOK || calls.Load() != 2 {
 		t.Fatalf("request after release status = %d, calls = %d", res.Code, calls.Load())
@@ -378,6 +404,7 @@ func TestInvalidConnectionsDoNotExecuteOrExposeCredentials(t *testing.T) {
 			if res.Code != http.StatusBadRequest || called {
 				t.Fatalf("status = %d, called = %v: %s", res.Code, called, res.Body.String())
 			}
+
 			if strings.Contains(res.Body.String(), "private-bmc-password") {
 				t.Fatal("connection validation error exposed password")
 			}
@@ -401,6 +428,7 @@ func TestConnectionOptionsAndExplicitEmptyPassword(t *testing.T) {
 				if !reflect.DeepEqual(conn, tc.want) {
 					t.Errorf("connection = %+v, want %+v", conn, tc.want)
 				}
+
 				return ipmi.Result{}, nil
 			}})
 			res := request(handler, http.MethodPost, "/api/v1/power/status", tc.body)
@@ -422,14 +450,17 @@ func TestConsecutiveRequestsDoNotReuseConnection(t *testing.T) {
 		if res.Code != http.StatusOK {
 			t.Fatalf("status = %d: %s", res.Code, res.Body.String())
 		}
+
 		if strings.Contains(res.Body.String(), "password") || strings.Contains(res.Body.String(), "192.0.2.") {
 			t.Fatal("response exposed connection")
 		}
 	}
+
 	want := []ipmi.Connection{defaultConnection(), {Interface: "lanplus", Host: "192.0.2.11", Port: 623, Username: "OTHER", Password: "different-password"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("connections = %+v, want %+v", got, want)
 	}
+
 	res := request(handler, http.MethodPost, "/api/v1/power/status", `{}`)
 	if res.Code != http.StatusBadRequest || len(got) != 2 {
 		t.Fatalf("request without connection: status = %d, executions = %d", res.Code, len(got))
@@ -451,6 +482,7 @@ func TestConcurrentRequestsKeepConnectionsSeparate(t *testing.T) {
 	for _, body := range []string{connectionBody(""), `{"connection":{"host":"192.0.2.11","username":"OTHER","password":"different-password"}}`} {
 		go func() { done <- request(handler, http.MethodPost, "/api/v1/power/status", body) }()
 	}
+
 	seen := make(map[string]ipmi.Connection)
 	for range 2 {
 		select {
@@ -460,9 +492,11 @@ func TestConcurrentRequestsKeepConnectionsSeparate(t *testing.T) {
 			t.Fatal("concurrent commands did not both start")
 		}
 	}
+
 	if !reflect.DeepEqual(seen["192.0.2.10"], defaultConnection()) || seen["192.0.2.11"].Username != "OTHER" || seen["192.0.2.11"].Password != "different-password" {
 		t.Fatalf("connections mixed between concurrent requests: %+v", seen)
 	}
+
 	release <- struct{}{}
 	release <- struct{}{}
 	for range 2 {
@@ -516,10 +550,12 @@ func TestActionFieldsRejectMissingNullAndWrongTypes(t *testing.T) {
 				if value != "" {
 					fields = fmt.Sprintf("%q:%s", action.field, value)
 				}
+
 				assertInvalidBeforeRunner(t, action.method, action.path, connectionBody(fields))
 			})
 		}
 	}
+
 	for _, value := range []string{"null", "1", `"true"`, `{}`, `[]`} {
 		t.Run("persistent="+value, func(t *testing.T) {
 			assertInvalidBeforeRunner(t, http.MethodPut, "/api/v1/boot-device", connectionBody(`"device":"pxe","persistent":`+value))
@@ -537,10 +573,12 @@ func TestEveryConnectionFieldRejectsNullAndWrongTypes(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+
 				assertInvalidBeforeRunner(t, http.MethodPost, "/api/v1/power/status", string(body))
 			})
 		}
 	}
+
 	for _, tc := range []struct{ field, value string }{
 		{"interface", `""`}, {"privilege", `""`}, {"auth_type", `""`},
 		{"port", "0"}, {"port", "1.5"}, {"port", `"623"`},
@@ -555,6 +593,7 @@ func TestEveryConnectionFieldRejectsNullAndWrongTypes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			assertInvalidBeforeRunner(t, http.MethodPost, "/api/v1/power/status", string(body))
 		})
 	}
@@ -571,6 +610,7 @@ func assertInvalidBeforeRunner(t *testing.T, method, path, body string) {
 	if res.Code != http.StatusBadRequest || called || !json.Valid(res.Body.Bytes()) {
 		t.Fatalf("status = %d, runner called = %v: %s", res.Code, called, res.Body.String())
 	}
+
 	if strings.Contains(res.Body.String(), "private-bmc-password") {
 		t.Fatal("validation error exposed password")
 	}
@@ -611,6 +651,7 @@ func TestIPWhitelistUsesOnlySocketPeer(t *testing.T) {
 			if res.Code != tc.want || !json.Valid(res.Body.Bytes()) {
 				t.Fatalf("status = %d, want %d: %s", res.Code, tc.want, res.Body.String())
 			}
+
 			if tc.want == http.StatusForbidden && !strings.Contains(res.Body.String(), "ip_not_allowed") {
 				t.Fatal("missing whitelist error code")
 			}
@@ -635,6 +676,7 @@ func TestIPWhitelistCoversCommandsUnknownRoutesAndMethods(t *testing.T) {
 			t.Errorf("%s %s status = %d, want 403", tc.method, tc.path, res.Code)
 		}
 	}
+
 	if called {
 		t.Fatal("blocked IP invoked runner")
 	}
@@ -657,15 +699,18 @@ func TestRequestLogsExcludeCredentialsBodiesAndQueryStrings(t *testing.T) {
 		req.Header.Set("X-Forwarded-For", "203.0.113.100")
 		handler.ServeHTTP(httptest.NewRecorder(), req)
 	}
+
 	entries := logs.All()
 	if len(entries) != 3 {
 		t.Fatalf("log count = %d, want 3", len(entries))
 	}
+
 	for i, route := range []string{"/api/v1/commands", "/api/v1/lan/:channel", "unknown"} {
 		fields := entries[i].ContextMap()
 		if fields["route"] != route || fields["client_ip"] != "192.0.2.20" || fields["method"] == nil || fields["status"] == nil || fields["duration"] == nil {
 			t.Errorf("unexpected log fields: %v", fields)
 		}
+
 		encoded := fmt.Sprint(entries[i])
 		for _, secret := range []string{token, "private-bmc-password", "query-secret", "argument-secret", "stdin-secret", "path-secret", "private-runner-output", "203.0.113.100"} {
 			if strings.Contains(encoded, secret) {
@@ -683,17 +728,24 @@ func TestPanicRecoveryDoesNotExposePanicValueAndReleasesSlot(t *testing.T) {
 		if calls == 1 {
 			panic("panic-containing-private-credentials")
 		}
+
 		return ipmi.Result{}, nil
 	}}, zap.New(core))
 	res := request(handler, http.MethodPost, "/api/v1/power/status", connectionBody(""))
 	if res.Code != http.StatusInternalServerError || !json.Valid(res.Body.Bytes()) || strings.Contains(res.Body.String(), "private-credentials") {
 		t.Fatalf("panic response status = %d: %s", res.Code, res.Body.String())
 	}
+
 	for _, entry := range logs.All() {
 		if strings.Contains(fmt.Sprint(entry), "private-credentials") {
 			t.Fatal("panic value exposed in logs")
 		}
+
+		if entry.Level == zap.ErrorLevel && entry.Message != "HTTP request panic recovered" {
+			t.Errorf("unexpected error log message: %q", entry.Message)
+		}
 	}
+
 	res = request(handler, http.MethodPost, "/api/v1/power/status", connectionBody(""))
 	if res.Code != http.StatusOK || calls != 2 {
 		t.Fatalf("request after panic status = %d, calls = %d", res.Code, calls)
@@ -712,11 +764,13 @@ func TestListRoutesPreserveRunnerResponses(t *testing.T) {
 					runErr = ipmi.ErrCommandFailed
 					status = http.StatusBadGateway
 				}
+
 				handler := newAPI(testConfig(), stubRunner{run: func(context.Context, ipmi.Connection, []string, string) (ipmi.Result, error) { return want, runErr }})
 				res := request(handler, http.MethodPost, path, connectionBody(""))
 				if res.Code != status {
 					t.Fatalf("status = %d, want %d", res.Code, status)
 				}
+
 				var got ipmi.Result
 				if fail {
 					var envelope struct {
@@ -725,10 +779,12 @@ func TestListRoutesPreserveRunnerResponses(t *testing.T) {
 					if err := json.Unmarshal(res.Body.Bytes(), &envelope); err != nil {
 						t.Fatal(err)
 					}
+
 					got = envelope.Result
 				} else if err := json.Unmarshal(res.Body.Bytes(), &got); err != nil {
 					t.Fatal(err)
 				}
+
 				if got != want {
 					t.Fatalf("result = %+v, want %+v", got, want)
 				}
@@ -776,6 +832,7 @@ func TestListRoutesPreserveSignalTermination(t *testing.T) {
 			if err := json.Unmarshal(res.Body.Bytes(), &envelope); err != nil {
 				t.Fatal(err)
 			}
+
 			if res.Code != http.StatusBadGateway || envelope.Result != want {
 				t.Fatalf("status = %d, result = %+v, want %+v", res.Code, envelope.Result, want)
 			}

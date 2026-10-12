@@ -13,9 +13,11 @@ func (h *Handler) RunCommand(c *gin.Context) {
 	if !decodeRequest(c, &request) {
 		return
 	}
+
 	args := make([]string, len(request.Args))
 	for i, argument := range request.Args {
 		args[i] = argument.Value
 	}
+
 	h.execute(c, request.Connection, args, request.Stdin.Value)
 }

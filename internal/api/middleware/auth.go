@@ -22,16 +22,18 @@ func Authenticate(token string) gin.HandlerFunc {
 			unauthorized(c)
 			return
 		}
+
 		actual := sha256.Sum256([]byte(parts[1]))
 		if subtle.ConstantTimeCompare(actual[:], expected[:]) != 1 {
 			unauthorized(c)
 			return
 		}
+
 		c.Next()
 	}
 }
 
 func unauthorized(c *gin.Context) {
 	c.Header("WWW-Authenticate", "Bearer")
-	response.WriteError(c, http.StatusUnauthorized, "unauthorized", "Invalid or missing authorization token")
+	response.WriteError(c, http.StatusUnauthorized, "unauthorized", "invalid or missing authorization token")
 }

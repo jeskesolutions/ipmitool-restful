@@ -38,10 +38,12 @@ func New(ctx context.Context, binary string, timeout time.Duration, maxOutputByt
 	if timeout <= 0 || maxOutputBytes <= 0 {
 		return nil, errors.New("ipmitool timeout and output limit must be positive")
 	}
+
 	path, err := exec.LookPath(binary)
 	if err != nil {
 		return nil, fmt.Errorf("locate ipmitool: %w", err)
 	}
+
 	c := &Client{binary: path, timeout: timeout, maxOutputBytes: maxOutputBytes}
 	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -49,10 +51,12 @@ func New(ctx context.Context, binary string, timeout time.Duration, maxOutputByt
 	if err != nil {
 		return nil, fmt.Errorf("verify ipmitool: %w", err)
 	}
+
 	c.version = strings.TrimSpace(result.Stdout)
 	if c.version == "" {
 		c.version = strings.TrimSpace(result.Stderr)
 	}
+
 	return c, nil
 }
 
@@ -69,9 +73,11 @@ func (c *Client) RunWithInput(ctx context.Context, conn Connection, args []strin
 	if err := conn.Validate(); err != nil {
 		return Result{}, err
 	}
+
 	if err := ValidateCommand(args, stdin); err != nil {
 		return Result{}, err
 	}
+
 	return c.execute(ctx, conn.arguments(args), conn.environment(), stdin)
 }
 
@@ -80,12 +86,15 @@ func ValidateCommand(args []string, stdin string) error {
 	if len(args) == 0 || len(args) > maxArguments || !commandName(args[0]) {
 		return invalid("provide a command name followed by at most 255 arguments")
 	}
+
 	if err := validateStrings(args); err != nil {
 		return err
 	}
+
 	if len(stdin) > maxInputSize {
-		return invalid("stdin exceeds 64 KiB")
+		return invalid("stdin exceeds 64 kib")
 	}
+
 	return nil
 }
 
@@ -108,16 +117,20 @@ func (c *Client) execute(parent context.Context, argv, env []string, stdin strin
 	if cmd.ProcessState != nil {
 		result.ExitCode = cmd.ProcessState.ExitCode()
 	}
+
 	if ctx.Err() != nil {
 		return result, ctx.Err()
 	}
+
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			return result, fmt.Errorf("%w: exit code %d", ErrCommandFailed, result.ExitCode)
 		}
+
 		return result, fmt.Errorf("execute ipmitool: %w", err)
 	}
+
 	return result, nil
 }
 
@@ -131,9 +144,11 @@ func validateStrings(values []string) error {
 			return invalid("arguments must not contain NUL bytes")
 		}
 	}
+
 	if total > maxInputSize {
-		return invalid("arguments exceed 64 KiB")
+		return invalid("arguments exceed 64 kib")
 	}
+
 	return nil
 }
 
@@ -141,14 +156,18 @@ func commandName(name string) bool {
 	if name == "" {
 		return false
 	}
+
 	for i, c := range name {
 		if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' {
 			continue
 		}
+
 		if i > 0 && (c >= '0' && c <= '9' || c == '_' || c == '-') {
 			continue
 		}
+
 		return false
 	}
+
 	return true
 }

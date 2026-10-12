@@ -18,6 +18,7 @@ func (h *Handler) PowerAction(c *gin.Context) {
 	if !decodeRequest(c, &request) {
 		return
 	}
+
 	switch request.Action {
 	case "cycle", "reset", "diag", "soft":
 		h.execute(c, request.Connection, []string{"chassis", "power", request.Action}, "")

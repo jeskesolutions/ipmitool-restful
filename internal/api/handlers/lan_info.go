@@ -7,9 +7,11 @@ func (h *Handler) LANInfo(c *gin.Context) {
 	if !decodeRequest(c, &request) {
 		return
 	}
+
 	channel, ok := readChannel(c)
 	if !ok {
 		return
 	}
+
 	h.execute(c, request.Connection, []string{"lan", "print", channel}, "")
 }

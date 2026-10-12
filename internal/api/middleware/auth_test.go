@@ -40,11 +40,13 @@ func TestAuthenticate(t *testing.T) {
 			for _, header := range tc.headers {
 				req.Header.Add("Authorization", header)
 			}
+
 			res := httptest.NewRecorder()
 			handler.ServeHTTP(res, req)
 			if res.Code != tc.want {
 				t.Fatalf("status = %d, want %d: %s", res.Code, tc.want, res.Body.String())
 			}
+
 			if called != (tc.want == http.StatusNoContent) {
 				t.Fatalf("protected handler called = %v", called)
 			}

@@ -18,9 +18,11 @@ func (h *Handler) ResetMC(c *gin.Context) {
 	if !decodeRequest(c, &request) {
 		return
 	}
+
 	if request.Mode != "warm" && request.Mode != "cold" {
 		response.WriteError(c, http.StatusBadRequest, "invalid_request", "mode must be warm or cold")
 		return
 	}
+
 	h.execute(c, request.Connection, []string{"mc", "reset", request.Mode}, "")
 }

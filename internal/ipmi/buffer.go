@@ -15,6 +15,7 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 		p = p[:remaining]
 		b.truncated = true
 	}
+
 	_, _ = b.buffer.Write(p)
 	return n, nil
 }

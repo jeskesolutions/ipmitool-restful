@@ -22,6 +22,7 @@ func fakeBinary(t *testing.T, script string) string {
 	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+script), 0700); err != nil {
 		t.Fatal(err)
 	}
+
 	return path
 }
 
@@ -32,6 +33,7 @@ func fakeClient(t *testing.T, script string, timeout time.Duration, limit int) *
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return c
 }
 
@@ -53,6 +55,7 @@ func TestNewVerifiesBinary(t *testing.T) {
 		if err := os.Chmod(binary, 0600); err != nil {
 			t.Fatal(err)
 		}
+
 		if _, err := New(context.Background(), binary, time.Second, 1024); err == nil {
 			t.Fatal("nonexecutable binary was accepted")
 		}
@@ -77,6 +80,7 @@ func TestNewVerifiesBinary(t *testing.T) {
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("expected startup cancellation, got %v", err)
 		}
+
 		if _, err := os.Stat(binary + ".started"); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("version process ran after cancellation: %v", err)
 		}
@@ -107,6 +111,7 @@ func TestRunPassesLiteralArgumentsAndConnectionFlags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	got := strings.Split(strings.TrimSuffix(result.Stdout, "\x00"), "\x00")
 	want := []string{
 		"-I", "lanplus", "-H", "192.0.2.5", "-U", "admin", "-L", "ADMINISTRATOR", "-A", "PASSWORD",
@@ -116,6 +121,7 @@ func TestRunPassesLiteralArgumentsAndConnectionFlags(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("arguments changed:\ngot  %#v\nwant %#v", got, want)
 	}
+
 	if result.ExitCode != 0 || result.Truncated {
 		t.Fatalf("unexpected result: %+v", result)
 	}
@@ -134,14 +140,17 @@ func TestRunIsolatesEnvironmentAndUsesRequestPassword(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if want := "bmc-secret\nunset\nunset\nunset\nunset\nC\n"; result.Stdout != want {
 		t.Fatalf("unexpected child environment: %q", result.Stdout)
 	}
+
 	conn.Password = ""
 	result, err = c.Run(context.Background(), conn, []string{"mc", "info"})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if want := "\nunset\nunset\nunset\nunset\nC\n"; result.Stdout != want {
 		t.Fatalf("empty password or environment isolation failed: %q", result.Stdout)
 	}
@@ -158,6 +167,7 @@ func TestRunKeepsConcurrentRequestPasswordsIsolated(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if result.Stdout != conn.Password {
 				t.Fatal("request received another request's credentials")
 			}
@@ -173,6 +183,7 @@ func TestRunUsesDefaultRemoteConnection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	got := strings.Split(strings.TrimSuffix(result.Stdout, "\x00"), "\x00")
 	want := []string{"-I", "lanplus", "-H", "192.0.2.5", "-U", "admin", "-p", "623", "-E", "--", "power", "status"}
 	if !reflect.DeepEqual(got, want) {
@@ -188,9 +199,11 @@ func TestRunCapturesFailureWithoutLeakingArguments(t *testing.T) {
 	if !errors.Is(err, ErrCommandFailed) {
 		t.Fatalf("expected command failure, got %v", err)
 	}
+
 	if result.ExitCode != 7 || result.Stdout != "partial result" || result.Stderr != "BMC rejected request" {
 		t.Fatalf("unexpected failure result: %+v", result)
 	}
+
 	if strings.Contains(err.Error(), "private-password") {
 		t.Fatalf("error leaked credentials: %v", err)
 	}
@@ -202,6 +215,7 @@ func TestRunReportsSignaledCommandAsFailure(t *testing.T) {
 	if !errors.Is(err, ErrCommandFailed) || result.ExitCode != -1 {
 		t.Fatalf("expected signaled command failure with exit code -1, got result %+v, error %v", result, err)
 	}
+
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		t.Fatalf("external signal was reported as context cancellation: %v", err)
 	}
@@ -213,6 +227,7 @@ func TestRunLimitsEachOutputStream(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if result.Stdout != "1234" || result.Stderr != "abcd" || !result.Truncated || result.ExitCode != 0 {
 		t.Fatalf("output limit not enforced: %+v", result)
 	}
@@ -257,6 +272,7 @@ func TestRunRejectsInvalidCommands(t *testing.T) {
 			if !errors.Is(err, ErrInvalidCommand) {
 				t.Fatalf("expected invalid command, got result %+v, error %v", result, err)
 			}
+
 			if result.Stdout != "" {
 				t.Fatal("invalid command was executed")
 			}
@@ -271,9 +287,11 @@ func TestRunWithInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if result.Stdout != input {
 		t.Fatalf("stdin changed: %q", result.Stdout)
 	}
+
 	_, err = c.RunWithInput(context.Background(), testConnection(), []string{"shell"}, strings.Repeat("x", maxInputSize+1))
 	if !errors.Is(err, ErrInvalidCommand) {
 		t.Fatalf("expected oversized stdin rejection, got %v", err)

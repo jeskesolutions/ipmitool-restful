@@ -19,10 +19,12 @@ func LogRequests(logger *zap.Logger) gin.HandlerFunc {
 		if route == "" {
 			route = "unknown"
 		}
+
 		clientIP := ""
 		if address, ok := peerAddress(c.Request); ok {
 			clientIP = address.String()
 		}
+
 		logger.Info("HTTP request",
 			zap.String("method", c.Request.Method),
 			zap.String("route", route),
@@ -36,6 +38,6 @@ func LogRequests(logger *zap.Logger) gin.HandlerFunc {
 func Recover(logger *zap.Logger) gin.HandlerFunc {
 	return gin.CustomRecoveryWithWriter(io.Discard, func(c *gin.Context, _ any) {
 		logger.Error("HTTP request panic recovered")
-		response.WriteError(c, http.StatusInternalServerError, "internal_error", "Internal server error")
+		response.WriteError(c, http.StatusInternalServerError, "internal_error", "internal server error")
 	})
 }

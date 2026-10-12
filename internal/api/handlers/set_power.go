@@ -18,9 +18,11 @@ func (h *Handler) SetPower(c *gin.Context) {
 	if !decodeRequest(c, &request) {
 		return
 	}
+
 	if request.State != "on" && request.State != "off" {
 		response.WriteError(c, http.StatusBadRequest, "invalid_request", "state must be on or off")
 		return
 	}
+
 	h.execute(c, request.Connection, []string{"chassis", "power", request.State}, "")
 }

@@ -25,25 +25,29 @@ func newServeCommand(configPath *string) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			logger := logging.New(cmd.ErrOrStderr())
-			defer logger.Sync()
+			defer func() { _ = logger.Sync() }()
 			cfg, err := config.Load(*configPath)
 			if err != nil {
 				return err
 			}
+
 			tlsConfig, err := loadTLS(cfg.Server.TLS)
 			if err != nil {
 				return err
 			}
+
 			installerOutput := &zapio.Writer{Log: logger, Level: zap.InfoLevel}
-			defer installerOutput.Close()
+			defer func() { _ = installerOutput.Close() }()
 			binary, err := ipmi.EnsureBinary(cmd.Context(), cfg.IPMITool.Binary, installerOutput)
 			if err != nil {
 				return err
 			}
+
 			client, err := ipmi.New(cmd.Context(), binary, cfg.IPMITool.Timeout, cfg.IPMITool.MaxOutputBytes)
 			if err != nil {
 				return err
 			}
+
 			server := &http.Server{
 				Addr:              cfg.Server.Address,
 				Handler:           api.New(cfg, client, logger),
@@ -64,10 +68,12 @@ func loadTLS(settings config.TLS) (*tls.Config, error) {
 	if !settings.Enabled {
 		return nil, nil
 	}
+
 	certificate, err := tls.LoadX509KeyPair(settings.CertFile, settings.KeyFile)
 	if err != nil {
 		return nil, fmt.Errorf("load TLS certificate and private key: %w", err)
 	}
+
 	return &tls.Config{
 		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{certificate},
@@ -79,6 +85,7 @@ func serve(ctx context.Context, server *http.Server, version string, logger *zap
 	if err != nil {
 		return fmt.Errorf("start API: %w", err)
 	}
+
 	logger.Info("API started", zap.String("address", listener.Addr().String()),
 		zap.Bool("tls", server.TLSConfig != nil), zap.String("ipmitool_version", version))
 
@@ -100,6 +107,7 @@ func serve(ctx context.Context, server *http.Server, version string, logger *zap
 			_ = server.Close()
 			return fmt.Errorf("stop API: %w", err)
 		}
+
 		logger.Info("API stopped")
 		return nil
 	}

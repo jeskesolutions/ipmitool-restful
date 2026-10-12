@@ -50,9 +50,11 @@ func TestRunRejectsInvalidConnections(t *testing.T) {
 			if !errors.Is(err, ErrInvalidCommand) {
 				t.Fatalf("expected invalid connection, got %v", err)
 			}
+
 			if result.Stdout != "" {
 				t.Fatal("invalid connection was executed")
 			}
+
 			if strings.Contains(err.Error(), "private-password") {
 				t.Fatal("validation error leaked password")
 			}
@@ -83,6 +85,7 @@ func TestConnectionAcceptsNativeValuesAndLimits(t *testing.T) {
 			}
 		})
 	}
+
 	for _, privilege := range []string{"CALLBACK", "USER", "OPERATOR", "ADMINISTRATOR", "OEM", "NO ACCESS"} {
 		for _, value := range []string{privilege, strings.ToLower(privilege), privilege + "+"} {
 			conn := testConnection()
@@ -92,6 +95,7 @@ func TestConnectionAcceptsNativeValuesAndLimits(t *testing.T) {
 			}
 		}
 	}
+
 	for _, auth := range []string{"NONE", "MD2", "MD5", "PASSWORD", "OEM", "RMCP+"} {
 		for _, value := range []string{auth, strings.ToLower(auth)} {
 			conn := testConnection()

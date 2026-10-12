@@ -7,9 +7,11 @@ func (h *Handler) ListUsers(c *gin.Context) {
 	if !decodeRequest(c, &request) {
 		return
 	}
+
 	channel, ok := readChannel(c)
 	if !ok {
 		return
 	}
+
 	h.execute(c, request.Connection, []string{"user", "list", channel}, "")
 }

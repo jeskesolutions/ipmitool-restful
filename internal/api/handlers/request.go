@@ -27,9 +27,11 @@ func (f *field[T]) UnmarshalJSON(data []byte) error {
 	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
 		return errors.New("null is not allowed")
 	}
+
 	if err := json.Unmarshal(data, &f.Value); err != nil {
 		return err
 	}
+
 	f.Present = true
 	return nil
 }
@@ -51,11 +53,13 @@ type connectionInput struct {
 
 func (input *connectionInput) connection() (ipmi.Connection, error) {
 	if input == nil {
-		return ipmi.Connection{}, errors.New("Provide connection with host, username, and password")
+		return ipmi.Connection{}, errors.New("provide connection with host, username, and password")
 	}
+
 	if input.Password == nil {
-		return ipmi.Connection{}, errors.New("Provide connection.password; an empty password must be explicit")
+		return ipmi.Connection{}, errors.New("provide connection.password; an empty password must be explicit")
 	}
+
 	for _, option := range []struct {
 		name  string
 		field field[string]
@@ -68,13 +72,16 @@ func (input *connectionInput) connection() (ipmi.Connection, error) {
 			return ipmi.Connection{}, errors.New("connection." + option.name + " must not be empty")
 		}
 	}
+
 	if input.Port.Present && input.Port.Value == 0 {
 		return ipmi.Connection{}, errors.New("connection.port must be between 1 and 65535")
 	}
+
 	var cipherSuite *int
 	if input.CipherSuite.Present {
 		cipherSuite = &input.CipherSuite.Value
 	}
+
 	connection := ipmi.Connection{
 		Host:        input.Host,
 		Username:    input.Username,
@@ -89,13 +96,14 @@ func (input *connectionInput) connection() (ipmi.Connection, error) {
 		// Validation errors identify fields, never the supplied credential values.
 		return ipmi.Connection{}, err
 	}
+
 	return connection, nil
 }
 
 func decodeRequest(c *gin.Context, destination any) bool {
 	contentType, _, err := mime.ParseMediaType(c.GetHeader("Content-Type"))
 	if err != nil || contentType != "application/json" {
-		response.WriteError(c, http.StatusUnsupportedMediaType, "unsupported_media_type", "Use Content-Type: application/json")
+		response.WriteError(c, http.StatusUnsupportedMediaType, "unsupported_media_type", "use content-type: application/json")
 		return false
 	}
 
@@ -112,18 +120,20 @@ func decodeRequest(c *gin.Context, destination any) bool {
 
 	var tooLarge *http.MaxBytesError
 	if errors.As(err, &tooLarge) {
-		response.WriteError(c, http.StatusRequestEntityTooLarge, "body_too_large", "JSON exceeds 128 KiB")
+		response.WriteError(c, http.StatusRequestEntityTooLarge, "body_too_large", "JSON exceeds 128 kib")
 	} else {
-		response.WriteError(c, http.StatusBadRequest, "invalid_json", "Provide one valid JSON object with the expected fields and no null values")
+		response.WriteError(c, http.StatusBadRequest, "invalid_json", "provide one valid JSON object with the expected fields and no null values")
 	}
+
 	return false
 }
 
 func readChannel(c *gin.Context) (string, bool) {
 	channel, err := strconv.Atoi(c.Param("channel"))
 	if err != nil || channel < 0 || channel > 15 {
-		response.WriteError(c, http.StatusBadRequest, "invalid_request", "Channel must be between 0 and 15")
+		response.WriteError(c, http.StatusBadRequest, "invalid_request", "channel must be between 0 and 15")
 		return "", false
 	}
+
 	return strconv.Itoa(channel), true
 }

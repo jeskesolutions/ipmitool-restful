@@ -19,7 +19,7 @@ func main() {
 	defer stop()
 	if err := cli.NewCommand().ExecuteContext(ctx); err != nil {
 		logger := logging.New(os.Stderr)
-		logger.Error("Application failed", zap.Error(err))
+		logger.Error("application failed", zap.Error(err))
 		_ = logger.Sync()
 		os.Exit(1)
 	}

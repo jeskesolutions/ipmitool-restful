@@ -29,6 +29,7 @@ func writeConfig(t *testing.T, content string) string {
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
+
 	return path
 }
 
@@ -40,12 +41,15 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if cfg.Auth.Token != "api-secret" || cfg.Server.Address != "127.0.0.1:8080" {
 		t.Fatal("token or default address was not loaded")
 	}
+
 	if cfg.IPMITool.Binary != "ipmitool" || cfg.IPMITool.Timeout != 30*time.Second || cfg.IPMITool.MaxOutputBytes != 1<<20 || cfg.IPMITool.MaxConcurrent != 4 {
 		t.Errorf("unexpected ipmitool defaults: %+v", cfg.IPMITool)
 	}
+
 	if cfg.Server.TLS.Enabled || len(cfg.Server.AllowedIPs) != 0 {
 		t.Fatal("TLS and the IP whitelist must be disabled by default")
 	}
@@ -76,9 +80,11 @@ ipmitool:
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if cfg.Auth.Token != "env-token" || cfg.Server.Address != "[::1]:9090" || cfg.IPMITool.Binary != "/opt/ipmitool" || cfg.IPMITool.Timeout != 2*time.Minute || cfg.IPMITool.MaxOutputBytes != 8192 || cfg.IPMITool.MaxConcurrent != 2 {
 		t.Fatal("environment values did not override file configuration")
 	}
+
 	if !cfg.Server.TLS.Enabled || cfg.Server.TLS.CertFile != "/etc/ipmi/server.pem" || cfg.Server.TLS.KeyFile != "/etc/ipmi/server.key" || strings.Join(cfg.Server.AllowedIPs, ",") != "192.0.2.5,2001:db8::/32" {
 		t.Fatal("TLS or IP whitelist environment values were not loaded")
 	}
@@ -164,6 +170,7 @@ func TestLoadRejectsInvalidConfiguration(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected invalid configuration to fail")
 			}
+
 			if strings.Contains(err.Error(), "never-reveal-this-secret") || strings.Contains(err.Error(), "api-secret") {
 				t.Fatalf("configuration error exposes a secret: %s", err)
 			}
@@ -190,6 +197,7 @@ server:
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if !cfg.Server.TLS.Enabled || cfg.Server.TLS.CertFile != "/etc/ipmi/server cert.pem" || cfg.Server.TLS.KeyFile != "/etc/ipmi/server key.pem" || len(cfg.Server.AllowedIPs) != 4 {
 		t.Fatal("TLS or whitelist fields were not preserved")
 	}
@@ -209,7 +217,8 @@ func TestLoadRejectsInvalidEnvironmentValues(t *testing.T) {
 		t.Run(tc.key+"/"+tc.value, func(t *testing.T) {
 			cleanEnvironment(t)
 			t.Setenv(tc.key, tc.value)
-			if _, err := Load(writeConfig(t, "auth:\n  token: api-secret\n")); err == nil {
+			_, err := Load(writeConfig(t, "auth:\n  token: api-secret\n"))
+			if err == nil {
 				t.Fatal("invalid environment value was accepted")
 			}
 		})
@@ -232,6 +241,7 @@ server:
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if cfg.Server.TLS.Enabled || len(cfg.Server.AllowedIPs) != 0 {
 		t.Fatal("explicit environment values did not disable TLS and the whitelist")
 	}
@@ -243,24 +253,30 @@ func TestLoadConfigDiscoveryAndMissingFiles(t *testing.T) {
 	if _, err := Load(""); err == nil || !strings.Contains(err.Error(), "auth.token") {
 		t.Fatalf("absent implicit configuration should fail required validation: %v", err)
 	}
+
 	t.Setenv("IPMI_API_AUTH_TOKEN", "env-token")
 	cfg, err := Load("")
 	if err != nil {
 		t.Fatalf("environment token should allow loading defaults without a file: %v", err)
 	}
+
 	if cfg.Auth.Token != "env-token" || cfg.Server.Address != "127.0.0.1:8080" {
 		t.Fatal("environment token or default address was not loaded")
 	}
+
 	if _, err := Load("does-not-exist.yaml"); err == nil || !strings.Contains(err.Error(), "configuration file") {
 		t.Fatalf("missing explicit configuration should fail file loading: %v", err)
 	}
+
 	if err := os.WriteFile("config.yaml", []byte("server:\n  address: 127.0.0.1:9090\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
+
 	cfg, err = Load("")
 	if err != nil {
 		t.Fatalf("load config.yaml from current directory: %v", err)
 	}
+
 	if cfg.Server.Address != "127.0.0.1:9090" {
 		t.Fatal("configuration from the current directory was not loaded")
 	}
