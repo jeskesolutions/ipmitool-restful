@@ -20,6 +20,7 @@ ipmitool-microservice.exe
 bin
 build
 dist
+tmp
 coverage
 coverage*.out
 coverage*.html

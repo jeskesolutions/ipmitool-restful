@@ -15,6 +15,7 @@
 /bin/
 /build/
 /dist/
+/tmp/
 *.test
 
 # Test reports and temporary files
