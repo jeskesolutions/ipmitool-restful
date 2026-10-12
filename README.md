@@ -7,6 +7,8 @@ REST API for remote `ipmitool` commands, built with Go, Gin, Viper, Cobra, and Z
 Every command receives BMC credentials in its JSON body. Access requires a fixed
 Bearer token, with optional HTTPS and an IP allowlist.
 
+See [BMC testing and WIP](BMC_TESTS.md) for hardware test status and planned features.
+
 ## Quick start
 
 Requires Go 1.26+ and network access to the BMCs.
