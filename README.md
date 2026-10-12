@@ -23,6 +23,11 @@ Set the generated value as `auth.token` in `config.yaml`, then start the API:
 go run . serve --config config.yaml
 ```
 
+For live reload, install Air, `goimports`, and `golangci-lint`, then run
+`"$(go env GOPATH)/bin/air" -c .air.toml`. Each rebuild formats, lints, builds,
+and starts `serve --config config.yaml`. Go files, module files, and local config
+changes trigger reloads; failed checks stop the API.
+
 Startup finds `ipmitool` in `PATH` or standard system directories and verifies it
 with `ipmitool -V`. If missing on Linux, it runs `apt update` and
 `apt install --yes --no-remove ipmitool`, using noninteractive sudo when needed.
@@ -230,6 +235,8 @@ $output = $response->throw()->json('stdout');
 raise `ConnectionException`. Common statuses: `400` invalid input, `401` invalid
 token, `403` blocked IP, `502` ipmitool failure, `503` concurrency limit, `504`
 command timeout. Execution failures include partial output in `result`.
+API error messages use lowercase except for acronyms such as IP and JSON.
+Native `stdout` and `stderr` keep their original case.
 Do not automatically retry operations that change BMC state.
 
 ## Deployment
@@ -278,11 +285,14 @@ and prevents privilege elevation, including automatic apt installation. TLS file
 must be readable by the service user. Use `journalctl -u ipmitool-microservice -f`
 for logs and restart the service after configuration changes.
 
-## Tests
+## Checks
 
 ```bash
+goimports -local ipmitool-microservice -w main.go internal
+golangci-lint run ./...
 go test -race ./...
 go vet ./...
+go build ./...
 ```
 
 Tests use simulated commands and temporary HTTP/HTTPS listeners. They cover

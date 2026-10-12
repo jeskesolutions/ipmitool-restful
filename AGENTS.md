@@ -6,8 +6,10 @@ These instructions apply throughout this repository.
 
 - This is an experimental REST API for remote `ipmitool` operations, intended for testing and not recommended for production. Preserve the warning at the beginning of the README.
 - Keep project code, comments, error messages, logs, documentation, and commit messages in English.
+- Write error messages directly in string literals using lowercase prose and uppercase acronyms such as IP, IPMI, KVM, CPU, RAM, JSON, and TLS. Do not add formatting functions or case conversion for error messages. Preserve identifiers, external diagnostics, and native command output verbatim.
 - Use the existing stack: Go 1.26+, Gin v1.12, Viper, Cobra, and Zap. Exact dependency versions are in [go.mod](go.mod).
 - Keep code readable, use one handler file per action, and reuse the shared validation and execution paths. Prefer the standard library and existing dependencies for small changes.
+- Define named response types outside handlers and build the payload before passing it to JSON response helpers. Do not declare anonymous structs inside response calls.
 - Keep [README.md](README.md) concise. API examples use Laravel's HTTP Facade with `baseUrl()`, a Bearer token, and credentials in the request body. Laravel is a client example, not a runtime dependency of this service.
 - Keep [config.example.yaml](config.example.yaml) free of unnecessary comments and real secrets.
 
@@ -24,19 +26,25 @@ These instructions apply throughout this repository.
 | [internal/api/response](internal/api/response) | Shared JSON response and error envelopes |
 | [internal/ipmi](internal/ipmi) | Executable discovery/installation, connection validation, argv, process execution, bounded output |
 | [internal/logging](internal/logging) | Zap JSON logger |
+| [.air.toml](.air.toml) | Development reloads, formatting, linting, build, and graceful restart |
 | [Dockerfile](Dockerfile), [deploy/ipmitool-microservice.service](deploy/ipmitool-microservice.service) | Container and systemd deployment |
 
 ## Development and verification
 
-Format changed Go files with `gofmt`. For Go changes, run the relevant package tests, then:
+Leave a blank line after a completed control-flow block before the next statement; keep `else` attached and do not add blank lines before enclosing closing braces. Register each router middleware in its own `Use` call, preserving execution order.
+
+Always run `goimports` and `golangci-lint` after Go changes, including formatting-only edits, before finishing or committing. Fix reported issues and verify the relevant package tests, followed by the full checks below. If a required tool cannot run, report the blocker explicitly.
 
 ```bash
+goimports -local ipmitool-microservice -w main.go internal
+golangci-lint run ./...
 go test -race ./...
 go vet ./...
 go build ./...
 ```
 
 - Tests use fake runners, temporary executables, and `httptest`; no real BMC or installed ipmitool is required. CLI lifecycle tests open temporary loopback ports. Installer tests must never invoke a real package manager.
+- Air must run `goimports`, then `golangci-lint`, then build and execute `serve --config config.yaml`. Keep checks blocking, watch Go tests and configuration/module changes, and send SIGINT before forcing termination. Air v1.63 waits at most 5 seconds to stop a process, so keep its kill delay at 4 seconds to avoid delayed cleanup racing the next build. The API's standalone shutdown timeout remains 5 seconds. Keep Air output in ignored `tmp/`.
 - Add regression coverage for changed behavior, especially validation before execution, credential isolation, cancellation, concurrent requests, output limits, and error responses. Reuse the existing test helpers.
 - Documentation-only changes need syntax/link/contract checks rather than a full Go test run. Laravel snippets can be checked with PHP; shell snippets with `bash -n`. Do not execute BMC-changing examples to validate documentation.
 - If a sandbox prevents loopback listeners or Docker access, distinguish that environment restriction from a test failure. Report checks that could not run; do not silently omit them.
